@@ -1,12 +1,20 @@
 // server/middleware/auth.js
-const { expressjwt: jwt } = require('express-jwt');
 const supabase = require('../db/supabase');
 
-// Validate Supabase JWT
-const requireAuth = jwt({
-  secret: process.env.SUPABASE_JWT_SECRET,
-  algorithms: ['HS256'],
-});
+// Validate token using Supabase SDK (no JWT secret needed)
+async function requireAuth(req, res, next) {
+  const authHeader = req.headers.authorization;
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    return res.status(401).json({ error: 'Missing token' });
+  }
+  const token = authHeader.split(' ')[1];
+  const { data: { user }, error } = await supabase.auth.getUser(token);
+  if (error || !user) {
+    return res.status(401).json({ error: 'Invalid or expired token' });
+  }
+  req.authUser = user;  // Supabase auth user
+  next();
+}
 
 // Attach user record (council_id + role) to req.user
 async function attachUser(req, res, next) {
@@ -14,7 +22,7 @@ async function attachUser(req, res, next) {
     const { data, error } = await supabase
       .from('users')
       .select('id, council_id, role')
-      .eq('id', req.auth.sub)
+      .eq('id', req.authUser.id)
       .single();
 
     if (error || !data) return res.status(401).json({ error: 'User not found' });
