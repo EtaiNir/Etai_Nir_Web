@@ -19,8 +19,7 @@ async function requireAuth(req, res, next) {
 // Attach user record (council_id + role) to req.user from auth metadata
 async function attachUser(req, res, next) {
   const meta = req.authUser.user_metadata;
-  console.log('attachUser meta:', JSON.stringify(meta), 'app_meta:', JSON.stringify(req.authUser.app_metadata));
-  if (!meta?.council_id) {
+if (!meta?.council_id) {
     return res.status(401).json({ error: 'User not configured' });
   }
   req.user = {
