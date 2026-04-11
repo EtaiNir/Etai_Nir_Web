@@ -25,7 +25,10 @@ async function attachUser(req, res, next) {
       .eq('id', req.authUser.id)
       .single();
 
-    if (error || !data) return res.status(401).json({ error: 'User not found' });
+    if (error || !data) {
+      console.error('attachUser error:', JSON.stringify(error), 'id:', req.authUser?.id);
+      return res.status(401).json({ error: 'User not found' });
+    }
 
     req.user = data;  // { id, council_id, role }
     next();
