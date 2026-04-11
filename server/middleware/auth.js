@@ -16,25 +16,18 @@ async function requireAuth(req, res, next) {
   next();
 }
 
-// Attach user record (council_id + role) to req.user
+// Attach user record (council_id + role) to req.user from auth metadata
 async function attachUser(req, res, next) {
-  try {
-    const { data, error } = await supabase
-      .from('users')
-      .select('id, council_id, role')
-      .eq('id', req.authUser.id)
-      .single();
-
-    if (error || !data) {
-      console.error('attachUser error:', JSON.stringify(error), 'id:', req.authUser?.id);
-      return res.status(401).json({ error: 'User not found' });
-    }
-
-    req.user = data;  // { id, council_id, role }
-    next();
-  } catch (err) {
-    next(err);
+  const meta = req.authUser.user_metadata;
+  if (!meta?.council_id) {
+    return res.status(401).json({ error: 'User not configured' });
   }
+  req.user = {
+    id:         req.authUser.id,
+    council_id: meta.council_id,
+    role:       meta.role || 'viewer',
+  };
+  next();
 }
 
 function requireRole(role) {
