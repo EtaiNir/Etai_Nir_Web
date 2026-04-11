@@ -14,13 +14,13 @@ router.get('/', async (req, res, next) => {
     const offset    = (page - 1) * PAGE_SIZE;
 
     let query = supabase
-      .from('students')
+      .from('talmidim_kesher')
       .select('*', { count: 'exact' })
       .eq('council_id', councilId)
       .range(offset, offset + PAGE_SIZE - 1);
 
     if (q) {
-      query = query.ilike('"שם תלמיד"', `%${q}%`);
+      query = query.or(`"שם משפחה".ilike.%${q}%,"שם פרטי".ilike.%${q}%`);
     }
 
     const { data, count, error } = await query;
@@ -42,7 +42,7 @@ router.get('/', async (req, res, next) => {
 router.get('/:id', async (req, res, next) => {
   try {
     const { data, error } = await supabase
-      .from('students')
+      .from('talmidim_kesher')
       .select('*')
       .eq('id', req.params.id)
       .eq('council_id', req.user.council_id)
