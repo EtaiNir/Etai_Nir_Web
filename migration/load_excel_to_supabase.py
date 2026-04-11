@@ -59,12 +59,11 @@ def get_council_id(pg_conn, council_name: str) -> str:
         cur.execute("SELECT id FROM councils WHERE name = %s", (council_name,))
         row = cur.fetchone()
         if not row:
+            cur.execute("SELECT name FROM councils")
+            available = [r[0] for r in cur.fetchall()]
             raise ValueError(
                 f"Council '{council_name}' not found in Supabase.\n"
-                f"Available councils:\n" +
-                "\n".join(r[0] for r in pg_conn.cursor().execute(
-                    "SELECT name FROM councils"
-                ).fetchall() or [])
+                f"Available councils: {available}"
             )
         return str(row[0])
 
@@ -90,7 +89,7 @@ def load_file(pg_conn, file_path: str, table: str, id_col: str, council_id: str)
                          f"Available columns: {list(df.columns)}")
 
     columns = list(df.columns)
-    quoted_cols = ", ".join([f'"{c}"' for c in columns])
+    quoted_cols = ", ".join(['"' + c.replace('"', '""') + '"' for c in columns])
     placeholders = ", ".join(["%s"] * len(columns))
 
     insert_sql = (
