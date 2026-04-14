@@ -42,7 +42,10 @@ router.post('/users', async (req, res, next) => {
       email_confirm: true,
     });
 
-    if (error) return res.status(400).json({ error: error.message });
+    if (error) {
+      console.error('createUser error:', JSON.stringify(error));
+      return res.status(400).json({ error: error.message });
+    }
     res.status(201).json({ id: data.user.id, email: data.user.email });
   } catch (err) {
     next(err);
