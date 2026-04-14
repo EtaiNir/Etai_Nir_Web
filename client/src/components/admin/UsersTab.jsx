@@ -3,7 +3,7 @@ import { useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import api from '../../api/client';
 
-const ROLES = ['viewer', 'admin'];
+const ROLES = ['viewer', 'editor', 'admin'];
 
 export default function UsersTab() {
   const qc = useQueryClient();
