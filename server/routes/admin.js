@@ -43,11 +43,12 @@ router.post('/users', async (req, res, next) => {
     });
 
     if (error) {
-      console.error('createUser error:', JSON.stringify(error));
+      console.error('createUser supabase error:', JSON.stringify(error));
       return res.status(400).json({ error: error.message });
     }
     res.status(201).json({ id: data.user.id, email: data.user.email });
   } catch (err) {
+    console.error('createUser exception:', err?.message, JSON.stringify(err));
     next(err);
   }
 });
