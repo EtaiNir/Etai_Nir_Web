@@ -19,6 +19,7 @@ router.post('/login', async (req, res, next) => {
       user:  {
         id:    data.user.id,
         email: data.user.email,
+        role:  data.user.user_metadata?.role || 'viewer',
       },
     });
   } catch (err) {
