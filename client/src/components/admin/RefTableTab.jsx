@@ -4,6 +4,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import api from '../../api/client';
 
 const TABLES = [
+  { key: 'rashuyot_chinuch',        label: 'רשויות חינוך' },
   { key: 'yishuvei_hamoatza',       label: 'ישובי המועצה' },
   { key: 'semel_yishuv_verechevot', label: 'סמל ישוב ורחובות' },
 ];

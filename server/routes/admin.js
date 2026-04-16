@@ -14,13 +14,18 @@ router.use(requireRole('admin'));
 // GET /admin/users — list users in this council
 router.get('/users', async (req, res, next) => {
   try {
-    const { data, error } = await supabase
-      .from('users')
-      .select('id, display_name, role, created_at')
-      .eq('council_id', req.user.council_id);
-
+    const { data: { users }, error } = await supabase.auth.admin.listUsers();
     if (error) throw error;
-    res.json(data);
+    const filtered = users
+      .filter(u => u.user_metadata?.council_id === req.user.council_id)
+      .map(u => ({
+        id:               u.id,
+        email:            u.email,
+        display_name:     u.user_metadata?.display_name || '',
+        role:             u.user_metadata?.role || 'viewer',
+        allowed_reshuyot: u.user_metadata?.allowed_reshuyot || [],
+      }));
+    res.json(filtered);
   } catch (err) {
     next(err);
   }
@@ -53,12 +58,16 @@ router.post('/users', async (req, res, next) => {
   }
 });
 
-// PUT /admin/users/:id  — update role
+// PUT /admin/users/:id  — update role + allowed_reshuyot
 router.put('/users/:id', async (req, res, next) => {
   try {
-    const { role } = req.body;
+    const { role, allowed_reshuyot } = req.body;
     const { error } = await supabase.auth.admin.updateUserById(req.params.id, {
-      user_metadata: { council_id: req.user.council_id, role },
+      user_metadata: {
+        council_id:       req.user.council_id,
+        role,
+        allowed_reshuyot: allowed_reshuyot || [],
+      },
     });
     if (error) throw error;
     res.json({ success: true });
@@ -85,33 +94,76 @@ router.post('/import', upload.fields([
 ]), async (req, res, next) => {
   try {
     const councilId = req.user.council_id;
-    const results = {};
+    const results   = {};
 
-    for (const [fieldName, tableName] of [
-      ['file_kesher', 'talmidim_kesher'],
-      ['file_nospim', 'talmidim_nospim'],
-    ]) {
-      const file = req.files?.[fieldName]?.[0];
-      if (!file) { results[tableName] = 'לא הועלה'; continue; }
+    const parseExcel = (buffer) => {
+      const wb = XLSX.read(buffer, { type: 'buffer' });
+      const ws = wb.Sheets[wb.SheetNames[0]];
+      return XLSX.utils.sheet_to_json(ws, { defval: null });
+    };
 
-      const wb   = XLSX.read(file.buffer, { type: 'buffer' });
-      const ws   = wb.Sheets[wb.SheetNames[0]];
-      const rows = XLSX.utils.sheet_to_json(ws, { defval: null });
+    // Auto-detect authority code from kesher file
+    let semelReshut = null;
+    const kesherFile = req.files?.['file_kesher']?.[0];
+    if (kesherFile) {
+      const rows = parseExcel(kesherFile.buffer);
+      semelReshut = rows[0]?.['סמל רשות חינוך'] ?? null;
+    }
 
-      if (!rows.length) { results[tableName] = '0 שורות'; continue; }
+    // --- kesher ---
+    if (kesherFile) {
+      const rows = parseExcel(kesherFile.buffer);
+      if (!rows.length) {
+        results['talmidim_kesher'] = '0 שורות';
+      } else {
+        const semel = rows[0]['סמל רשות חינוך'];
+        const { error: delErr } = await supabase
+          .from('talmidim_kesher').delete()
+          .eq('council_id', councilId)
+          .eq('סמל רשות חינוך', semel);
+        if (delErr) throw delErr;
 
-      const { error: delErr } = await supabase
-        .from(tableName).delete().eq('council_id', councilId);
-      if (delErr) throw delErr;
-
-      const BATCH = 500;
-      for (let i = 0; i < rows.length; i += BATCH) {
-        const batch = rows.slice(i, i + BATCH).map(r => ({ council_id: councilId, ...r }));
-        const { error: insErr } = await supabase.from(tableName).insert(batch);
-        if (insErr) throw insErr;
+        const BATCH = 500;
+        for (let i = 0; i < rows.length; i += BATCH) {
+          const batch = rows.slice(i, i + BATCH).map(r => {
+            const { '__EMPTY': _empty, ...rest } = r;
+            return { council_id: councilId, ...rest };
+          });
+          const { error: insErr } = await supabase.from('talmidim_kesher').insert(batch);
+          if (insErr) throw insErr;
+        }
+        results['talmidim_kesher'] = `${rows.length} שורות יובאו`;
       }
+    } else {
+      results['talmidim_kesher'] = 'לא הועלה';
+    }
 
-      results[tableName] = `${rows.length} שורות יובאו`;
+    // --- nospim ---
+    const nospimFile = req.files?.['file_nospim']?.[0];
+    if (nospimFile) {
+      const rows = parseExcel(nospimFile.buffer);
+      if (!rows.length) {
+        results['talmidim_nospim'] = '0 שורות';
+      } else {
+        const { error: delErr } = await supabase
+          .from('talmidim_nospim').delete()
+          .eq('council_id', councilId)
+          .eq('semel_reshut', semelReshut);
+        if (delErr) throw delErr;
+
+        const BATCH = 500;
+        for (let i = 0; i < rows.length; i += BATCH) {
+          const batch = rows.slice(i, i + BATCH).map(r => {
+            const { 'מזהה': _id, ...rest } = r;
+            return { council_id: councilId, semel_reshut: semelReshut, ...rest };
+          });
+          const { error: insErr } = await supabase.from('talmidim_nospim').insert(batch);
+          if (insErr) throw insErr;
+        }
+        results['talmidim_nospim'] = `${rows.length} שורות יובאו`;
+      }
+    } else {
+      results['talmidim_nospim'] = 'לא הועלה';
     }
 
     res.json({ success: true, results });
@@ -120,7 +172,7 @@ router.post('/import', upload.fields([
   }
 });
 
-const REF_TABLES = ['yishuvei_hamoatza', 'semel_yishuv_verechevot'];
+const REF_TABLES = ['yishuvei_hamoatza', 'semel_yishuv_verechevot', 'rashuyot_chinuch'];
 
 // GET /admin/ref/:table
 router.get('/ref/:table', async (req, res, next) => {

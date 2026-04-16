@@ -47,6 +47,9 @@ router.get('/', async (req, res, next) => {
       .eq('council_id', councilId)
       .range(offset, offset + PAGE_SIZE - 1);
 
+    if (req.user.allowed_reshuyot?.length)
+      query = query.in('סמל רשות חינוך', req.user.allowed_reshuyot);
+
     if (q)        query = query.or(`"שם משפחה".ilike.%${q}%,"שם פרטי".ilike.%${q}%`);
     if (mosad)    query = query.eq('"שם מוסד"',      mosad);
     if (shkhava)  query = query.eq('"שכבה"',          shkhava);
@@ -74,6 +77,9 @@ router.get('/export', async (req, res, next) => {
       .from('talmidim_kesher')
       .select('*')
       .eq('council_id', councilId);
+
+    if (req.user.allowed_reshuyot?.length)
+      query = query.in('סמל רשות חינוך', req.user.allowed_reshuyot);
 
     if (q)        query = query.or(`"שם משפחה".ilike.%${q}%,"שם פרטי".ilike.%${q}%`);
     if (mosad)    query = query.eq('"שם מוסד"',      mosad);

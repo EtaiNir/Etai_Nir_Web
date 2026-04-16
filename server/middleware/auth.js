@@ -23,9 +23,10 @@ if (!meta?.council_id) {
     return res.status(401).json({ error: 'User not configured' });
   }
   req.user = {
-    id:         req.authUser.id,
-    council_id: meta.council_id,
-    role:       meta.role || 'viewer',
+    id:               req.authUser.id,
+    council_id:       meta.council_id,
+    role:             meta.role || 'viewer',
+    allowed_reshuyot: meta.allowed_reshuyot || null,
   };
   next();
 }
