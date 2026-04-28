@@ -190,11 +190,10 @@ router.get('/ref/:table', async (req, res, next) => {
       return res.json(rows);
     }
 
-    const { data, error } = await supabase
-      .from(req.params.table)
-      .select('*')
-      .eq('council_id', req.user.council_id)
-      .order('id');
+    let query = supabase.from(req.params.table).select('*').order('id');
+    if (req.params.table !== 'semel_yishuv_verechevot')
+      query = query.eq('council_id', req.user.council_id);
+    const { data, error } = await query;
     if (error) throw error;
     res.json(data);
   } catch (err) { next(err); }
