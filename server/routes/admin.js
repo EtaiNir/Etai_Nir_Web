@@ -2,6 +2,7 @@
 const express  = require('express');
 const router   = express.Router();
 const supabase = require('../db/supabase');
+const pool     = require('../db/pg');
 const { requireRole } = require('../middleware/auth');
 const multer   = require('multer');
 const XLSX     = require('xlsx');
@@ -182,9 +183,11 @@ router.get('/ref/:table', async (req, res, next) => {
       return res.status(400).json({ error: 'טבלה לא מורשית' });
 
     if (req.params.table === 'rashuyot_chinuch') {
-      const { data, error } = await supabase.rpc('get_rashuyot_chinuch', { p_council_id: req.user.council_id });
-      if (error) throw error;
-      return res.json(data);
+      const { rows } = await pool.query(
+        'SELECT id, council_id, semel, shem FROM rashuyot_chinuch WHERE council_id = $1 ORDER BY shem',
+        [req.user.council_id]
+      );
+      return res.json(rows);
     }
 
     const { data, error } = await supabase
@@ -203,6 +206,15 @@ router.post('/ref/:table', async (req, res, next) => {
     if (!REF_TABLES.includes(req.params.table))
       return res.status(400).json({ error: 'טבלה לא מורשית' });
 
+    if (req.params.table === 'rashuyot_chinuch') {
+      const { semel, shem } = req.body;
+      const { rows } = await pool.query(
+        'INSERT INTO rashuyot_chinuch (council_id, semel, shem) VALUES ($1, $2, $3) RETURNING *',
+        [req.user.council_id, semel, shem]
+      );
+      return res.status(201).json(rows[0]);
+    }
+
     const { data, error } = await supabase
       .from(req.params.table)
       .insert({ ...req.body, council_id: req.user.council_id })
@@ -217,6 +229,15 @@ router.put('/ref/:table/:id', async (req, res, next) => {
   try {
     if (!REF_TABLES.includes(req.params.table))
       return res.status(400).json({ error: 'טבלה לא מורשית' });
+
+    if (req.params.table === 'rashuyot_chinuch') {
+      const { semel, shem } = req.body;
+      const { rows } = await pool.query(
+        'UPDATE rashuyot_chinuch SET semel=$1, shem=$2 WHERE id=$3 AND council_id=$4 RETURNING *',
+        [semel, shem, req.params.id, req.user.council_id]
+      );
+      return res.json(rows[0]);
+    }
 
     const { data, error } = await supabase
       .from(req.params.table)
@@ -234,6 +255,14 @@ router.delete('/ref/:table/:id', async (req, res, next) => {
   try {
     if (!REF_TABLES.includes(req.params.table))
       return res.status(400).json({ error: 'טבלה לא מורשית' });
+
+    if (req.params.table === 'rashuyot_chinuch') {
+      await pool.query(
+        'DELETE FROM rashuyot_chinuch WHERE id=$1 AND council_id=$2',
+        [req.params.id, req.user.council_id]
+      );
+      return res.status(204).send();
+    }
 
     const { error } = await supabase
       .from(req.params.table)
