@@ -34,15 +34,16 @@ router.get('/users', async (req, res, next) => {
 // POST /admin/users  { email, password, display_name, role }
 router.post('/users', async (req, res, next) => {
   try {
-    const { email, password, display_name, role = 'viewer' } = req.body;
+    const { email, password, display_name, role = 'viewer', allowed_reshuyot = [] } = req.body;
 
     const { data, error } = await supabase.auth.admin.createUser({
       email,
       password,
       user_metadata: {
-        council_id:   req.user.council_id,
+        council_id:       req.user.council_id,
         role,
         display_name,
+        allowed_reshuyot,
       },
       email_confirm: true,
     });
@@ -179,6 +180,12 @@ router.get('/ref/:table', async (req, res, next) => {
   try {
     if (!REF_TABLES.includes(req.params.table))
       return res.status(400).json({ error: 'טבלה לא מורשית' });
+
+    if (req.params.table === 'rashuyot_chinuch') {
+      const { data, error } = await supabase.rpc('get_rashuyot_chinuch', { p_council_id: req.user.council_id });
+      if (error) throw error;
+      return res.json(data);
+    }
 
     const { data, error } = await supabase
       .from(req.params.table)
