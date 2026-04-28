@@ -41,9 +41,10 @@ router.get('/', async (req, res, next) => {
     const offset    = (page - 1) * PAGE_SIZE;
     const { q, mosad, shkhava, makhbila, yishuv, col1, val1, col2, val2 } = req.query;
 
+    const LIST_COLS = `id, council_id, "מספר זהות", "שם משפחה", "שם פרטי", "שכבה", "מקבילה", "שם מוסד", "ישוב מוסד", "סמל רשות חינוך"`;
     let query = supabase
       .from('talmidim_kesher')
-      .select('*', { count: 'exact' })
+      .select(LIST_COLS, { count: 'exact' })
       .eq('council_id', councilId)
       .range(offset, offset + PAGE_SIZE - 1);
 
